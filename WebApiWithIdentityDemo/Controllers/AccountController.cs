@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using WebApiWithIdentityDemo.Services;
 
@@ -10,9 +12,7 @@ public class AccountController(IAccountService accountService) : ControllerBase
     [HttpPost]
     public async Task<ActionResult> Register(RegisterRequest request)
     {
-        var result = await accountService.Register(request);
-
-        return Ok(result);
+        return Ok(await accountService.Register(request));
     }
     
     [HttpPost]
@@ -35,9 +35,24 @@ public class AccountController(IAccountService accountService) : ControllerBase
         }
         
         if (signInResult.IsLockedOut) return Unauthorized("Your account is locked.");
+        
         if (signInResult.IsNotAllowed) return Unauthorized("You are not allowed to sign in.");
 
         return Unauthorized();
+    }
+    
+    [Authorize(Roles = "Admin")]
+    [HttpPost]
+    public async Task<ActionResult> AddToRole(string userName, string roleName)
+    {
+        return Ok(await accountService.AddToRole(userName, roleName));
+    }
+    
+    [Authorize(Roles = "Admin")]
+    [HttpPost]
+    public async Task<ActionResult> GetRoles(string userName)
+    {
+        return Ok(await accountService.GetRoles(userName));
     }
 }
 

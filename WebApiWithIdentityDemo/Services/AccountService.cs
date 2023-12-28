@@ -15,6 +15,8 @@ public interface IAccountService
     Task<ApplicationUser?> GetUser(string userName);
     Task<SignInResult> SignIn(ApplicationUser user, string password);
     Task<string> GetJwtSecurityTokenAsync(ApplicationUser user);
+    Task<IdentityResult> AddToRole(string userName, string roleName);
+    Task<IList<string>> GetRoles(string userName);
 }
 
 public class AccountService(
@@ -57,6 +59,31 @@ public class AccountService(
         
         return new JwtSecurityTokenHandler().WriteToken(tokenOptions);
     }
+    
+    public async Task<IdentityResult> AddToRole(string userName, string roleName)
+    {
+        var user = await GetUser(userName);
+        
+        if (user is null)
+        {
+            var identityErrorDescriber = new IdentityErrorDescriber();
+            return IdentityResult.Failed(identityErrorDescriber.InvalidUserName(userName));
+        }
+
+        return await userManager.AddToRoleAsync(user, roleName);
+    }
+    
+    public async Task<IList<string>> GetRoles(string userName)
+    {
+        var user = await GetUser(userName);
+        
+        if (user is null)
+        {
+            return new List<string>();
+        }
+
+        return await userManager.GetRolesAsync(user);
+    }
 
     private SigningCredentials GetSigningCredentials()
     {
@@ -91,7 +118,7 @@ public class AccountService(
             issuer: jwtConfigOptions.Value.ValidIssuer,
             audience: jwtConfigOptions.Value.ValidAudience,
             claims: claims,
-            expires: DateTime.Now.AddMinutes(10),
+            expires: DateTime.Now.AddMinutes(jwtConfigOptions.Value.ExpiresInMinutes),
             signingCredentials: signingCredentials
         );
         

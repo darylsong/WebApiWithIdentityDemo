@@ -56,6 +56,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Add ASP.NET Core Identity
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>()
+    .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
 // Add JWT authentication
@@ -88,6 +89,7 @@ builder.Services.AddAuthentication(options =>
 
 // Add application services
 builder.Services.AddTransient<IAccountService, AccountService>();
+builder.Services.AddTransient<IRoleService, RoleService>();
 
 var app = builder.Build();
 

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace WebApiWithIdentityDemo.Controllers;
 
-[Authorize]
+[Authorize(Roles = "Admin, User")]
 [Route("api/[controller]/[action]")]
 [ApiController]
 public class TestController : ControllerBase
