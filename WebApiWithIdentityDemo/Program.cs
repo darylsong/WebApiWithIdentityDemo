@@ -87,9 +87,14 @@ builder.Services.AddAuthentication(options =>
         };
     });
 
+builder.Services.AddAuthorizationBuilder()
+    // Add policy authorization
+    .AddPolicy("EmployeeOnly", policy => policy.RequireClaim("EmployeeNumber"));
+
 // Add application services
 builder.Services.AddTransient<IAccountService, AccountService>();
 builder.Services.AddTransient<IRoleService, RoleService>();
+builder.Services.AddTransient<IClaimsService, ClaimsService>();
 
 var app = builder.Build();
 
