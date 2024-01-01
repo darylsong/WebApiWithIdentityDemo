@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -7,6 +8,9 @@ using Microsoft.OpenApi.Models;
 using WebApiWithIdentityDemo;
 using WebApiWithIdentityDemo.Data;
 using WebApiWithIdentityDemo.Data.Models;
+using WebApiWithIdentityDemo.Policies;
+using WebApiWithIdentityDemo.Policies.Handlers;
+using WebApiWithIdentityDemo.Policies.Requirements;
 using WebApiWithIdentityDemo.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -87,9 +91,15 @@ builder.Services.AddAuthentication(options =>
         };
     });
 
+// Add policy authorization
 builder.Services.AddAuthorizationBuilder()
-    // Add policy authorization
-    .AddPolicy("EmployeeOnly", policy => policy.RequireClaim("EmployeeNumber"));
+    .AddPolicy("EmployeeOnly", policy => policy.RequireClaim("EmployeeNumber"))
+    .AddPolicy("AtLeast21", policy =>
+    policy.Requirements.Add(new MinimumAgeRequirement(21)));
+
+// Add policy requirement handlers
+
+builder.Services.AddSingleton<IAuthorizationHandler, MinimumAgeHandler>();
 
 // Add application services
 builder.Services.AddTransient<IAccountService, AccountService>();

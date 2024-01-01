@@ -98,9 +98,11 @@ public class AccountService(
     {
         var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.Name, user.UserName)
+            new Claim(ClaimTypes.Name, user.UserName),
         };
-        
+
+        claims.AddRange(await userManager.GetClaimsAsync(user));
+
         var roles = await userManager.GetRolesAsync(user);
         
         foreach (var role in roles)
