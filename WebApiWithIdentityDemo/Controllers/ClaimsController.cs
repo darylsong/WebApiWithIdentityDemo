@@ -6,6 +6,7 @@ using WebApiWithIdentityDemo.Services;
 
 namespace WebApiWithIdentityDemo.Controllers;
 
+[Authorize(Roles = "Admin")]
 [Route("api/[controller]")]
 [ApiController]
 public class ClaimsController(IClaimsService claimsService) : ControllerBase
