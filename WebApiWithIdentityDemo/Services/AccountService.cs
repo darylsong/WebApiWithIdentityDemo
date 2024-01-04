@@ -1,7 +1,9 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Web;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using WebApiWithIdentityDemo.Controllers;
@@ -11,28 +13,55 @@ namespace WebApiWithIdentityDemo.Services;
 
 public interface IAccountService
 {
-    Task<IdentityResult> Register(RegisterRequest request);
+    Task<IdentityResult> Register(RegisterRequest request, string? confirmationLinkWithPlaceholders);
     Task<ApplicationUser?> GetUser(string userName);
     Task<SignInResult> SignIn(ApplicationUser user, string password);
     Task<string> GetJwtSecurityTokenAsync(ApplicationUser user);
     Task<IdentityResult> AddToRole(string userName, string roleName);
     Task<IList<string>> GetRoles(string userName);
+    Task<IdentityResult> ConfirmEmail(string token, string email);
 }
 
 public class AccountService(
-    IOptions<JwtConfigOptions> jwtConfigOptions,
+    ILogger<AccountService> logger,
+    IEmailSender<ApplicationUser> emailSender,
+    IOptions<JwtOptions> jwtOptions,
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager) : IAccountService
 {
-    public async Task<IdentityResult> Register(RegisterRequest request)
+    public async Task<IdentityResult> Register(RegisterRequest request, string? confirmationLinkWithPlaceholders)
     {
+        if (confirmationLinkWithPlaceholders is null)
+        {
+            var identityErrorDescriber = new IdentityErrorDescriber();
+            return IdentityResult.Failed(identityErrorDescriber.DefaultError());
+        }
+        
         var user = new ApplicationUser
         {
             UserName = request.UserName,
             Email = request.Email,
         };
 
-        return await userManager.CreateAsync(user, request.Password);
+        var result = await userManager.CreateAsync(user, request.Password);
+
+        if (result.Succeeded)
+        {
+            var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
+            
+            var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+            
+            var encodedEmail = HttpUtility.UrlEncode(user.Email);
+
+            var confirmationLink = confirmationLinkWithPlaceholders
+                .Replace("_tokenPlaceholder_", encodedToken)
+                .Replace("_emailPlaceholder_", encodedEmail);
+
+            await emailSender.SendConfirmationLinkAsync(user, user.Email,
+                confirmationLink);
+        }
+
+        return result;
     }
 
     public async Task<ApplicationUser?> GetUser(string userName)
@@ -85,9 +114,24 @@ public class AccountService(
         return await userManager.GetRolesAsync(user);
     }
 
+    public async Task<IdentityResult> ConfirmEmail(string token, string email)
+    {
+        var user = await userManager.FindByEmailAsync(email);
+        
+        if (user is null)
+        {
+            var identityErrorDescriber = new IdentityErrorDescriber();
+            return IdentityResult.Failed(identityErrorDescriber.InvalidEmail(email));
+        }
+        
+        token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(token));
+        
+        return await userManager.ConfirmEmailAsync(user, token);
+    }
+
     private SigningCredentials GetSigningCredentials()
     {
-        var key = Encoding.UTF8.GetBytes(jwtConfigOptions.Value.Secret);
+        var key = Encoding.UTF8.GetBytes(jwtOptions.Value.Secret);
         
         var secret = new SymmetricSecurityKey(key);
         
@@ -117,10 +161,10 @@ public class AccountService(
     {
         var tokenOptions = new JwtSecurityToken
         (
-            issuer: jwtConfigOptions.Value.ValidIssuer,
-            audience: jwtConfigOptions.Value.ValidAudience,
+            issuer: jwtOptions.Value.ValidIssuer,
+            audience: jwtOptions.Value.ValidAudience,
             claims: claims,
-            expires: DateTime.Now.AddMinutes(jwtConfigOptions.Value.ExpiresInMinutes),
+            expires: DateTime.Now.AddMinutes(jwtOptions.Value.ExpiresInMinutes),
             signingCredentials: signingCredentials
         );
         

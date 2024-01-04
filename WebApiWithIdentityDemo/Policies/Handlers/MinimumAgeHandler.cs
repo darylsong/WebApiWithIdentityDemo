@@ -5,7 +5,7 @@ using WebApiWithIdentityDemo.Policies.Requirements;
 
 namespace WebApiWithIdentityDemo.Policies.Handlers;
 
-public class MinimumAgeHandler(IOptions<JwtConfigOptions> jwtConfigOptions) : AuthorizationHandler<MinimumAgeRequirement>
+public class MinimumAgeHandler(IOptions<JwtOptions> jwtConfigOptions) : AuthorizationHandler<MinimumAgeRequirement>
 {
     protected override Task HandleRequirementAsync(
         AuthorizationHandlerContext context, MinimumAgeRequirement requirement)

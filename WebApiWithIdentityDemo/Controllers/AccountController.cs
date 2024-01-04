@@ -12,7 +12,17 @@ public class AccountController(IAccountService accountService) : ControllerBase
     [HttpPost]
     public async Task<ActionResult> Register(RegisterRequest request)
     {
-        return Ok(await accountService.Register(request));
+        var scheme = Url.ActionContext.HttpContext.Request.Scheme;
+        var confirmEmailUrl = Url.Action(
+            "ConfirmEmail", 
+            "Account",
+            new
+        {
+            token = "_tokenPlaceholder_",
+            email = "_emailPlaceholder_",
+        }, scheme);
+            
+        return Ok(await accountService.Register(request, confirmEmailUrl));
     }
     
     [HttpPost]
@@ -39,6 +49,12 @@ public class AccountController(IAccountService accountService) : ControllerBase
         if (signInResult.IsNotAllowed) return Unauthorized("You are not allowed to sign in.");
 
         return Unauthorized();
+    }
+    
+    [HttpGet]
+    public async Task<ActionResult> ConfirmEmail([FromQuery] string token, string email)
+    {
+        return Ok(await accountService.ConfirmEmail(token, email));
     }
     
     [Authorize(Roles = "Admin")]

@@ -8,7 +8,7 @@ using Microsoft.OpenApi.Models;
 using WebApiWithIdentityDemo;
 using WebApiWithIdentityDemo.Data;
 using WebApiWithIdentityDemo.Data.Models;
-using WebApiWithIdentityDemo.Policies;
+using WebApiWithIdentityDemo.Helpers;
 using WebApiWithIdentityDemo.Policies.Handlers;
 using WebApiWithIdentityDemo.Policies.Requirements;
 using WebApiWithIdentityDemo.Services;
@@ -17,8 +17,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add configurations from appsettings
 builder.Services
-    .AddOptions<JwtConfigOptions>()
-    .Bind(builder.Configuration.GetSection(JwtConfigOptions.JwtConfig));
+    .AddOptions<JwtOptions>()
+    .Bind(builder.Configuration.GetSection(JwtOptions.JwtConfig));
+
+builder.Services
+    .AddOptions<SmtpOptions>()
+    .Bind(builder.Configuration.GetSection(SmtpOptions.SmtpConfig));
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -59,14 +63,19 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 // Add ASP.NET Core Identity
 builder.Services
-    .AddIdentity<ApplicationUser, IdentityRole>()
+    .AddIdentity<ApplicationUser, IdentityRole>(options =>
+    {
+        options.User.RequireUniqueEmail = true;
+        options.SignIn.RequireConfirmedEmail = true;
+    })
     .AddRoles<IdentityRole>()
-    .AddEntityFrameworkStores<ApplicationDbContext>();
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
 
 // Add JWT authentication
 var jwtConfigOptions = builder.Configuration
-    .GetSection(JwtConfigOptions.JwtConfig)
-    .Get<JwtConfigOptions>()!;
+    .GetSection(JwtOptions.JwtConfig)
+    .Get<JwtOptions>()!;
 
 JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear(); // Remove default claims
 
@@ -87,7 +96,7 @@ builder.Services.AddAuthentication(options =>
             ValidateLifetime = true,
             IssuerSigningKey = new SymmetricSecurityKey(System.Text.Encoding.ASCII.GetBytes(jwtConfigOptions.Secret)),
             RequireExpirationTime = true,
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.Zero,
         };
     });
 
@@ -102,6 +111,7 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddSingleton<IAuthorizationHandler, MinimumAgeHandler>();
 
 // Add application services
+builder.Services.AddScoped<IEmailSender<ApplicationUser>, EmailSender>();
 builder.Services.AddTransient<IAccountService, AccountService>();
 builder.Services.AddTransient<IRoleService, RoleService>();
 builder.Services.AddTransient<IClaimsService, ClaimsService>();
