@@ -144,6 +144,11 @@ public class AccountService(
 
     private async Task SendConfirmationEmail(ApplicationUser user, string confirmationLinkWithPlaceholders)
     {
+        if (DateTime.Now - user.ConfirmationEmailLastSentAt <= TimeSpan.FromHours(1))
+        {
+            throw new Exception("Please wait 1 hour before requesting for email confirmation.");
+        }
+        
         var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
             
         var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
@@ -156,6 +161,8 @@ public class AccountService(
 
         await emailSender.SendConfirmationLinkAsync(user, user.Email,
             confirmationLink);
+        user.ConfirmationEmailLastSentAt = DateTime.Now;
+        await userManager.UpdateAsync(user);
     }
 
     private SigningCredentials GetSigningCredentials()

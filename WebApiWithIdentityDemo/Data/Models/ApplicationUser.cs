@@ -4,4 +4,5 @@ namespace WebApiWithIdentityDemo.Data.Models;
 
 public class ApplicationUser : IdentityUser
 {
+    public DateTime ConfirmationEmailLastSentAt { get; set; }
 }
