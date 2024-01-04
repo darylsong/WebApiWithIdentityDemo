@@ -13,13 +13,14 @@ namespace WebApiWithIdentityDemo.Services;
 
 public interface IAccountService
 {
-    Task<IdentityResult> Register(RegisterRequest request, string? confirmationLinkWithPlaceholders);
+    Task<IdentityResult> Register(RegisterRequest request, string confirmationLinkWithPlaceholders);
     Task<ApplicationUser?> GetUser(string userName);
     Task<SignInResult> SignIn(ApplicationUser user, string password);
     Task<string> GetJwtSecurityTokenAsync(ApplicationUser user);
     Task<IdentityResult> AddToRole(string userName, string roleName);
     Task<IList<string>> GetRoles(string userName);
     Task<IdentityResult> ConfirmEmail(string token, string email);
+    Task ResendConfirmationEmail(string email, string confirmationLinkWithPlaceholders);
 }
 
 public class AccountService(
@@ -29,14 +30,8 @@ public class AccountService(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager) : IAccountService
 {
-    public async Task<IdentityResult> Register(RegisterRequest request, string? confirmationLinkWithPlaceholders)
+    public async Task<IdentityResult> Register(RegisterRequest request, string confirmationLinkWithPlaceholders)
     {
-        if (confirmationLinkWithPlaceholders is null)
-        {
-            var identityErrorDescriber = new IdentityErrorDescriber();
-            return IdentityResult.Failed(identityErrorDescriber.DefaultError());
-        }
-        
         var user = new ApplicationUser
         {
             UserName = request.UserName,
@@ -47,18 +42,7 @@ public class AccountService(
 
         if (result.Succeeded)
         {
-            var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
-            
-            var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
-            
-            var encodedEmail = HttpUtility.UrlEncode(user.Email);
-
-            var confirmationLink = confirmationLinkWithPlaceholders
-                .Replace("_tokenPlaceholder_", encodedToken)
-                .Replace("_emailPlaceholder_", encodedEmail);
-
-            await emailSender.SendConfirmationLinkAsync(user, user.Email,
-                confirmationLink);
+            await SendConfirmationEmail(user, confirmationLinkWithPlaceholders);
         }
 
         return result;
@@ -88,7 +72,7 @@ public class AccountService(
         
         return new JwtSecurityTokenHandler().WriteToken(tokenOptions);
     }
-    
+
     public async Task<IdentityResult> AddToRole(string userName, string roleName)
     {
         var user = await GetUser(userName);
@@ -101,7 +85,7 @@ public class AccountService(
 
         return await userManager.AddToRoleAsync(user, roleName);
     }
-    
+
     public async Task<IList<string>> GetRoles(string userName)
     {
         var user = await GetUser(userName);
@@ -118,15 +102,60 @@ public class AccountService(
     {
         var user = await userManager.FindByEmailAsync(email);
         
+        var identityErrorDescriber = new IdentityErrorDescriber();
+        
         if (user is null)
         {
-            var identityErrorDescriber = new IdentityErrorDescriber();
             return IdentityResult.Failed(identityErrorDescriber.InvalidEmail(email));
+        }
+
+        if (user.EmailConfirmed)
+        {
+            return IdentityResult.Failed(new IdentityError
+            {
+                Code = "EmailAlreadyConfirmed",
+                Description = "This email has already been confirmed.",
+            });
         }
         
         token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(token));
         
         return await userManager.ConfirmEmailAsync(user, token);
+    }
+
+    public async Task ResendConfirmationEmail(string email, string confirmationLinkWithPlaceholders)
+    {
+        var user = await userManager.FindByEmailAsync(email);
+        
+        if (user is null)
+        {
+            throw new Exception("Email not found.");
+        }
+
+        var isUserConfirmed = user.EmailConfirmed;
+
+        if (isUserConfirmed)
+        {
+            throw new Exception("User is already confirmed.");
+        }
+        
+        await SendConfirmationEmail(user, confirmationLinkWithPlaceholders);
+    }
+
+    private async Task SendConfirmationEmail(ApplicationUser user, string confirmationLinkWithPlaceholders)
+    {
+        var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
+            
+        var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+            
+        var encodedEmail = HttpUtility.UrlEncode(user.Email);
+
+        var confirmationLink = confirmationLinkWithPlaceholders
+            .Replace("_tokenPlaceholder_", encodedToken)
+            .Replace("_emailPlaceholder_", encodedEmail);
+
+        await emailSender.SendConfirmationLinkAsync(user, user.Email,
+            confirmationLink);
     }
 
     private SigningCredentials GetSigningCredentials()

@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using WebApiWithIdentityDemo.Services;
 
@@ -12,19 +11,9 @@ public class AccountController(IAccountService accountService) : ControllerBase
     [HttpPost]
     public async Task<ActionResult> Register(RegisterRequest request)
     {
-        var scheme = Url.ActionContext.HttpContext.Request.Scheme;
-        var confirmEmailUrl = Url.Action(
-            "ConfirmEmail", 
-            "Account",
-            new
-        {
-            token = "_tokenPlaceholder_",
-            email = "_emailPlaceholder_",
-        }, scheme);
-            
-        return Ok(await accountService.Register(request, confirmEmailUrl));
+        return Ok(await accountService.Register(request, ConfirmEmailUrlWithPlaceholders));
     }
-    
+
     [HttpPost]
     public async Task<ActionResult> SignIn(LoginRequest request)
     {
@@ -51,24 +40,52 @@ public class AccountController(IAccountService accountService) : ControllerBase
         return Unauthorized();
     }
     
+    [HttpPost]
+    public async Task<ActionResult> ResendConfirmationEmail(string email)
+    {
+        await accountService.ResendConfirmationEmail(email, ConfirmEmailUrlWithPlaceholders);
+        return Ok();
+    }
+
     [HttpGet]
     public async Task<ActionResult> ConfirmEmail([FromQuery] string token, string email)
     {
         return Ok(await accountService.ConfirmEmail(token, email));
     }
-    
+
     [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult> AddToRole(string userName, string roleName)
     {
         return Ok(await accountService.AddToRole(userName, roleName));
     }
-    
+
     [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult> GetRoles(string userName)
     {
         return Ok(await accountService.GetRoles(userName));
+    }
+
+    private string ConfirmEmailUrlWithPlaceholders
+    {
+        get
+        {
+            var scheme = Url.ActionContext.HttpContext.Request.Scheme;
+            var confirmEmailUrl = Url.Action(
+                "ConfirmEmail", 
+                "Account",
+                new
+                {
+                    token = "_tokenPlaceholder_",
+                    email = "_emailPlaceholder_",
+                }, scheme);
+
+            if (confirmEmailUrl is null)
+                throw new Exception();
+            
+            return confirmEmailUrl;
+        }
     }
 }
 
